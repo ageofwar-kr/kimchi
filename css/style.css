@@ -220,7 +220,7 @@ a { color: inherit; }
   min-height: 44px; max-width: 420px; text-align: center; font-size: 14px; line-height: 1.5;
   color: var(--muted); white-space: pre-wrap;
 }
-.call-sub .say { color: var(--text); font-weight: 600; }
+.call-sub .say { color: var(--text); font-weight: 500; letter-spacing: -0.1px; }
 .call-fallback { width: 100%; max-width: 420px; }
 .fallback-note { font-size: 12.5px; color: var(--muted); text-align: center; margin: 0 0 8px; }
 .call-input-row { display: flex; gap: 8px; }
