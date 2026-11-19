@@ -1,6 +1,8 @@
-/* 김치 v1.0 — 앱 로직
+/* 김치 v1.1 — 앱 로직
    · 대화는 공개 중계 서버(app:"kimchi")를 거쳐 Gemini로 간다. API 키는 클라이언트에 없다.
-   · 음성: SpeechRecognition(듣기) + speechSynthesis(읽기). 안 되면 통화 화면의 키보드 입력으로 이어간다. */
+   · 음성: SpeechRecognition(듣기) + speechSynthesis(읽기). 안 되면 통화 화면의 키보드 입력으로 이어간다.
+   · v1.1: 사전 예열(warm)·문맥 축소·통화 짧은 답(call:true)·통화 연결 지연 단축·
+           목소리 프리셋/기기 음성 선택·기본 호칭 '드카'·한국어 조사 다듬기 */
 (function () {
   "use strict";
 
@@ -11,31 +13,61 @@
     set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
   };
 
+  var DEFAULT_NAME = "드카";
+
   var state = {
-    name: "",
+    name: DEFAULT_NAME,
     tone: "formal",     /* formal | casual */
     theme: "light",     /* light | dark */
     speaker: true,
     todos: [],
     messages: [],
     busy: false,
+    voice: { preset: "basic", device: "" },
     call: { active: false, muted: false, timer: null, startedAt: 0 }
   };
 
+  /* ---------------- 목소리 프리셋 ---------------- */
+  var VOICE_PRESETS = [
+    { id: "basic", label: "기본", rate: 1.00, pitch: 1.00 },
+    { id: "bright", label: "밝고 빠른", rate: 1.14, pitch: 1.20 },
+    { id: "calm", label: "차분한", rate: 0.90, pitch: 0.95 },
+    { id: "deep", label: "낮고 묵직한", rate: 0.94, pitch: 0.70 }
+  ];
+
+  function presetById(id) {
+    for (var i = 0; i < VOICE_PRESETS.length; i++) if (VOICE_PRESETS[i].id === id) return VOICE_PRESETS[i];
+    return VOICE_PRESETS[0];
+  }
+
   /* ---------------- 텍스트 ---------------- */
+  function hasBatchim(s) {
+    var t = String(s || "").trim();
+    if (!t) return false;
+    var c = t.charAt(t.length - 1), code = c.charCodeAt(0);
+    if (code >= 0xAC00 && code <= 0xD7A3) return (code - 0xAC00) % 28 !== 0;
+    return false;
+  }
+
+  /* 이름 뒤 호격 조사: 받침 있으면 '아', 없으면 '야' */
+  function withYa(name) { return name + (hasBatchim(name) ? "아" : "야"); }
+
   function timePart() {
     var h = new Date().getHours();
-    return h < 12 ? "좋은 아침" : h < 18 ? "좋은 오후" : "좋은 저녁";
+    /* 받침에 맞는 서술격 조사: 아침이에요 / 오후예요 / 저녁이에요 */
+    if (h < 12) return { part: "좋은 아침", ok: "이에요" };
+    if (h < 18) return { part: "좋은 오후", ok: "예요" };
+    return { part: "좋은 저녁", ok: "이에요" };
   }
 
   function ui() {
     var casual = state.tone === "casual";
     var n = state.name;
-    var part = timePart();
+    var tp = timePart(), part = tp.part, ok = tp.ok;
     return {
       greet: casual
-        ? (n ? n + "아, " + part + "!" : part + "!")
-        : (n ? n + "님, " + part + "이에요." : part + "이에요."),
+        ? (n ? withYa(n) + ", " + part + "!" : part + "!")
+        : (n ? n + "님, " + part + ok + "." : part + ok + "."),
       sub: casual
         ? "오늘 챙길 일부터 내일 일정까지, 편하게 말해."
         : "오늘 챙길 일부터 내일 일정까지, 편하게 말씀하세요.",
@@ -99,7 +131,7 @@
       b.type = "button";
       b.className = "chip";
       b.textContent = label;
-      b.addEventListener("click", function () { converse(label); });
+      b.addEventListener("click", function () { warm(); converse(label); });
       box.appendChild(b);
     });
   }
@@ -162,9 +194,13 @@
   }
 
   /* ---------------- 대화 흐름 ---------------- */
-  function historyForApi() {
-    return state.messages.slice(-(CFG.historyMsgs || 8)).map(function (m) {
-      return { r: m.r, t: String(m.t).slice(0, 300) };
+  /* 문맥은 최근 6메시지·160자까지만 보낸다(통화는 4메시지·100자).
+     페이로드가 짧을수록 Apps Script 왕복과 생성 시간이 함께 줄어든다. */
+  function historyForApi(callMode) {
+    var max = callMode ? (CFG.callHistoryMsgs || 4) : (CFG.historyMsgs || 6);
+    var chars = callMode ? (CFG.callHistoryChars || 100) : (CFG.historyChars || 160);
+    return state.messages.slice(-max).map(function (m) {
+      return { r: m.r, t: String(m.t).slice(0, chars) };
     });
   }
 
@@ -177,8 +213,8 @@
       days[d.getDay()] + "요일 " + ampm + " " + h12 + "시 " + (m < 10 ? "0" + m : m) + "분입니다. (한국 시간)";
     out += "\n사용자 말투 설정: " + (state.tone === "casual" ? "반말" : "존댓말") + ".";
     var open = state.todos.filter(function (t) { return !t.done; }).map(function (t) { return t.text; });
-    if (open.length) out += "\n사용자가 저장해 둔 할 일: " + open.join(", ");
-    else out += "\n사용자가 저장해 둔 할 일: 없음";
+    if (open.length) out += "\n저장된 할 일: " + open.join(", ");
+    else out += "\n저장된 할 일: 없음";
     return out;
   }
 
@@ -205,7 +241,27 @@
       .catch(function (e) { if (timer) clearTimeout(timer); throw e; });
   }
 
+  /* ---------------- 사전 예열 (콜드 스타트 제거) ----------------
+     중계 서버를 GET으로 한 번 깨워 두면, 사용자가 말을 마치기 전에
+     TLS 연결과 Apps Script 인스턴스가 준비된다. 모델은 호출하지 않는다. */
+  var warmAt = 0, warmPending = null;
+
+  function warm(force) {
+    if (!CFG.proxy) return Promise.resolve(false);
+    var ttl = CFG.warmTtlMs || 90000;
+    if (!force && warmAt && Date.now() - warmAt < ttl) return Promise.resolve(false);
+    if (warmPending) return warmPending;
+    warmAt = Date.now();       /* 실패해도 곧 다시 쏘지 않도록 시각은 남긴다 */
+    warmPending = Promise.resolve()
+      .then(function () { return fetch(CFG.proxy, { cache: "no-store", mode: "cors" }); })
+      .then(function (r) { return r.text(); })
+      .then(function () { warmPending = null; warmAt = Date.now(); return true; })
+      .catch(function () { warmPending = null; return false; });
+    return warmPending;
+  }
+
   function ask(text) {
+    var onCall = state.call.active;
     var body = {
       action: "chat",
       app: CFG.app || "kimchi",
@@ -213,9 +269,10 @@
       text: text,
       nick: state.name || "",
       ctx: situation(),
-      history: historyForApi(),
+      history: historyForApi(onCall),
       model: CFG.model
     };
+    if (onCall) body.call = true;      /* 통화 모드: 서버가 1~2문장·140토큰으로 짧게 답한다 */
     return post(body).then(function (j) {
       if (!j || !j.ok || !j.reply) throw new Error((j && j.error) || "empty");
       return String(j.reply).trim();
@@ -266,20 +323,120 @@
     if ($("home") && !$("home").hidden) showChat(true);
   }
 
-  /* ---------------- 음성: TTS ---------------- */
-  var voice = null, speaking = false;
-
-  function pickVoice() {
-    if (!("speechSynthesis" in window) || !window.speechSynthesis) return;
+  /* ---------------- 음성: 목록 / 선택 ---------------- */
+  function allVoices() {
+    if (!("speechSynthesis" in window) || !window.speechSynthesis) return [];
     var list = [];
     try { list = window.speechSynthesis.getVoices() || []; } catch (e) { list = []; }
-    if (!list.length) return;
-    var ko = list.filter(function (v) { return /^ko(-|_)?/i.test(v.lang || ""); });
+    return list;
+  }
+
+  function koVoices() {
+    var list = allVoices();
+    var ko = list.filter(function (v) { return /^ko([-_]|$)/i.test(v.lang || "") || /korean|한국/i.test(v.name || ""); });
+    return ko;
+  }
+
+  /* 기기 음성: 사용자가 고른 음성 → 없으면 Google → 자연/신경망 → 첫 한국어 */
+  function resolveVoice() {
+    var ko = koVoices();
+    if (!ko.length) return null;
+    var want = state.voice.device;
+    if (want) {
+      for (var i = 0; i < ko.length; i++) {
+        if (ko[i].voiceURI === want || ko[i].name === want) return ko[i];
+      }
+    }
     var pick = null;
-    for (var i = 0; i < ko.length; i++) { if (/google/i.test(ko[i].name)) { pick = ko[i]; break; } }
-    if (!pick) for (var j = 0; j < ko.length; j++) { if (/natural|neural|premium|enhanced/i.test(ko[j].name)) { pick = ko[j]; break; } }
-    if (!pick) pick = ko[0] || null;
-    voice = pick;
+    for (var a = 0; a < ko.length; a++) { if (/google/i.test(ko[a].name || "")) { pick = ko[a]; break; } }
+    if (!pick) for (var b = 0; b < ko.length; b++) { if (/natural|neural|premium|enhanced/i.test(ko[b].name || "")) { pick = ko[b]; break; } }
+    return pick || ko[0] || null;
+  }
+
+  function voiceLabel(v) {
+    var name = v.name || "기본 음성";
+    var local = v.localService ? "기기" : "온라인";
+    return name + " · " + local;
+  }
+
+  function saveVoice() { LS.set("kimchi.voice", state.voice); }
+
+  function renderVoiceUI() {
+    var box = $("voicePresets");
+    if (box) {
+      box.innerHTML = "";
+      VOICE_PRESETS.forEach(function (p) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "voice-chip";
+        b.dataset.preset = p.id;
+        b.textContent = p.label;
+        b.setAttribute("aria-pressed", String(state.voice.preset === p.id));
+        b.addEventListener("click", function () {
+          state.voice.preset = p.id;
+          saveVoice();
+          renderVoiceUI();
+          previewVoice();
+        });
+        box.appendChild(b);
+      });
+    }
+
+    var list = $("voiceList");
+    var note = $("voiceNote");
+    if (!list) return;
+    list.innerHTML = "";
+    var ko = koVoices();
+    var noteText;
+    if (!ko.length) {
+      noteText = "이 기기에서 한국어 음성을 찾지 못했어요. 위 스타일(높낮이·속도)은 그대로 적용됩니다.";
+    } else {
+      noteText = "이 기기의 한국어 음성 " + ko.length + "개 · 기본은 자동으로 가장 좋은 음성을 씁니다.";
+    }
+    if (note) note.textContent = noteText;
+
+    var auto = document.createElement("button");
+    auto.type = "button";
+    auto.className = "voice-row";
+    auto.dataset.voice = "";
+    auto.setAttribute("aria-pressed", String(!state.voice.device));
+    auto.innerHTML = '<span class="voice-name">자동 (기기 기본)</span><span class="voice-pick">' +
+      (state.voice.device ? "" : "✓") + '</span>';
+    auto.addEventListener("click", function () {
+      state.voice.device = "";
+      saveVoice();
+      renderVoiceUI();
+      previewVoice();
+    });
+    list.appendChild(auto);
+
+    ko.forEach(function (v) {
+      var key = v.voiceURI || v.name || "";
+      var row = document.createElement("button");
+      row.type = "button";
+      row.className = "voice-row";
+      row.dataset.voice = key;
+      row.setAttribute("aria-pressed", String(state.voice.device === key));
+      var n = document.createElement("span");
+      n.className = "voice-name";
+      n.textContent = voiceLabel(v);
+      var p = document.createElement("span");
+      p.className = "voice-pick";
+      p.textContent = state.voice.device === key ? "✓" : "";
+      row.appendChild(n); row.appendChild(p);
+      row.addEventListener("click", function () {
+        state.voice.device = key;
+        saveVoice();
+        renderVoiceUI();
+        previewVoice();
+      });
+      list.appendChild(row);
+    });
+  }
+
+  /* ---------------- 음성: TTS ---------------- */
+  function pickVoice() {
+    renderVoiceUI();
   }
 
   function cleanForSpeech(t) {
@@ -291,18 +448,28 @@
       .trim();
   }
 
-  function speak(text, done) {
+  var speaking = false;
+
+  function speak(text, done, opt) {
+    opt = opt || {};
     var finish = function () { speaking = false; setWave(false); if (done) done(); };
     if (!state.speaker || !("speechSynthesis" in window) || !window.speechSynthesis) { finish(); return; }
     var u;
     try {
       u = new SpeechSynthesisUtterance(cleanForSpeech(text));
     } catch (e) { finish(); return; }
+
+    var p = presetById(state.voice.preset);
+    var rate = p.rate, pitch = p.pitch;
+    if (state.tone === "casual") { rate = Math.min(1.6, rate + 0.03); pitch = Math.min(2, pitch + 0.03); }
+    var v = resolveVoice();
+
     u.lang = "ko-KR";
-    u.rate = state.tone === "casual" ? 1.06 : 1.0;
-    u.pitch = state.tone === "casual" ? 1.08 : 1.03;
+    u.rate = opt.rate || rate;
+    u.pitch = Math.min(2, Math.max(0, opt.pitch || pitch));
     u.volume = 1;
-    if (voice) u.voice = voice;
+    if (v) u.voice = v;
+
     var settled = false;
     var once = function () { if (!settled) { settled = true; finish(); } };
     u.onend = once;
@@ -316,6 +483,13 @@
     /* 일부 브라우저는 onend를 놓친다 — 길이에 맞춘 안전 타이머 */
     var guard = Math.min(20000, 1400 + cleanForSpeech(text).length * 150);
     setTimeout(function () { if (speaking && settled === false) once(); }, guard);
+  }
+
+  function previewVoice() {
+    var t = state.tone === "casual"
+      ? "안녕, 드카야. 김치야. 이 목소리로 말할게."
+      : "안녕하세요, 드카님. 김치예요. 이 목소리로 말씀드릴게요.";
+    speak(t);
   }
 
   /* ---------------- 음성: 인식 ---------------- */
@@ -363,8 +537,9 @@
     r.onend = function () {
       recLive = false;
       setWave(false);
+      /* v1.1: 읽기가 끝나면 곧바로 다시 듣는다(대화가 끊기지 않게) */
       if (recWanted && state.call.active && !speaking && !state.call.muted) {
-        setTimeout(function () { if (recWanted && state.call.active && !speaking && !state.call.muted) startRec(); }, 350);
+        setTimeout(function () { if (recWanted && state.call.active && !speaking && !state.call.muted) startRec(); }, 0);
       }
     };
     return r;
@@ -375,7 +550,14 @@
     if (recLive) return;
     if (!rec) rec = buildRec();
     recWanted = true;
-    try { rec.start(); } catch (e) { /* 이미 시작됨 */ }
+    try { rec.start(); } catch (e) {
+      /* 아직 종료 처리 중이면 잠깐 뒤 한 번만 더 시도한다 */
+      setTimeout(function () {
+        if (recWanted && !recLive && state.call.active && !state.call.muted) {
+          try { rec.start(); } catch (e2) {}
+        }
+      }, 120);
+    }
   }
 
   function stopRec() {
@@ -442,7 +624,9 @@
     setTimer("00:00");
     setCallSub("");
     setWave(false);
+    warm(true);        /* 통화 중 첫 질문 전에 중계 서버를 미리 깨워 둔다 */
 
+    /* v1.1: 인위적 대기 0.85초 → 0.26초. 첫 인사는 바로 읽는다. */
     setTimeout(function () {
       if (!state.call.active) return;
       setStatus("통화 중", true);
@@ -460,7 +644,7 @@
         if (!micSupported()) { callFallback("unsupported"); return; }
         startRec();
       });
-    }, 850);
+    }, 260);
   }
 
   function endCall() {
@@ -524,6 +708,7 @@
     var s = $("sheet");
     if (!s) return;
     $("nameInput").value = state.name || "";
+    renderVoiceUI();
     s.hidden = false;
     document.body.style.overflow = "hidden";
     if (focus === "todo") {
@@ -536,6 +721,8 @@
     var s = $("sheet");
     if (!s) return;
     s.hidden = true;
+    if (window.speechSynthesis) { try { window.speechSynthesis.cancel(); } catch (e) {} }
+    speaking = false; setWave(false);
     if (!state.call.active) document.body.style.overflow = "";
   }
 
@@ -580,8 +767,16 @@
     /* 말투 */
     applyTone(LS.get("kimchi.tone", "formal"));
 
-    /* 이름 */
-    state.name = String(LS.get("kimchi.name", "") || "").slice(0, 12);
+    /* 이름 — 처음 열면 '드카', 사용자가 비우면 비운 채로 둔다 */
+    var savedName = LS.get("kimchi.name", null);
+    state.name = savedName === null ? DEFAULT_NAME : String(savedName || "").slice(0, 12);
+
+    /* 목소리 */
+    var sv = LS.get("kimchi.voice", null);
+    if (sv && typeof sv === "object") {
+      state.voice.preset = presetById(sv.preset).id;
+      state.voice.device = String(sv.device || "");
+    }
 
     /* 할 일 / 대화 복원 */
     loadTodos();
@@ -599,7 +794,7 @@
     $("toneCasual").addEventListener("click", function () { applyTone("casual"); });
     $("themeBtn").addEventListener("click", function () { applyTheme(state.theme === "dark" ? "light" : "dark"); });
     $("settingsBtn").addEventListener("click", function () { openSheet(); });
-    $("callBtn").addEventListener("click", startCall);
+    $("callBtn").addEventListener("click", function () { warm(true); startCall(); });
     $("endBtn").addEventListener("click", endCall);
     $("micBtn").addEventListener("click", function () {
       state.call.muted = !state.call.muted;
@@ -635,6 +830,13 @@
       converse(v);
     });
 
+    /* 입력창에 손을 대는 순간 중계 서버를 미리 깨운다(v1.1) */
+    var inp = $("input");
+    if (inp) {
+      inp.addEventListener("focus", function () { warm(); });
+      inp.addEventListener("keydown", function () { warm(); }, { passive: true });
+    }
+
     /* 통화 입력(폴백) */
     $("callForm").addEventListener("submit", function (e) {
       e.preventDefault();
@@ -656,7 +858,10 @@
       LS.set("kimchi.name", v);
       renderHome();
       closeSheet();
-      toast(v ? (state.tone === "casual" ? v + "이라고 부를게." : v + "님이라고 부를게요.") : "이름을 비웠어요.");
+      if (!v) { toast("이름을 비웠어요."); return; }
+      toast(state.tone === "casual"
+        ? withYa(v) + "라고 부를게."
+        : v + "님이라고 부를게요.");
     });
     $("todoAdd").addEventListener("click", function () {
       var v = $("todoInput").value;
@@ -667,6 +872,10 @@
     $("todoInput").addEventListener("keydown", function (e) {
       if (e.key === "Enter") { e.preventDefault(); $("todoAdd").click(); }
     });
+
+    /* 목소리 미리듣기 */
+    var vt = $("voiceTest");
+    if (vt) vt.addEventListener("click", function () { warm(); previewVoice(); });
 
     /* 설치 */
     window.addEventListener("beforeinstallprompt", function (e) {
@@ -697,10 +906,10 @@
       });
     }
 
-    /* 음성 목록 */
+    /* 음성 목록 — 기기 음성은 늦게 채워질 수 있어 두 번 그린다 */
     if ("speechSynthesis" in window && window.speechSynthesis) {
-      pickVoice();
-      try { window.speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {}
+      renderVoiceUI();
+      try { window.speechSynthesis.onvoiceschanged = function () { renderVoiceUI(); }; } catch (e) {}
     }
 
     /* 서비스 워커 (PWA) */
@@ -719,11 +928,18 @@
 
     renderHome();
     showInstall(!!deferredPrompt);
+
+    /* 페이지 진입 즉시 중계 서버 예열 — 첫 질문 전에 콜드 스타트를 끝낸다 */
+    setTimeout(function () { warm(); }, 120);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
 
   /* 테스트/디버그용 (읽기) */
-  window.Kimchi = { state: state, ui: ui, ask: ask, converse: converse };
+  window.Kimchi = {
+    state: state, ui: ui, ask: ask, converse: converse, warm: warm,
+    presets: VOICE_PRESETS, voices: koVoices, resolveVoice: resolveVoice,
+    preview: previewVoice, version: (CFG.version || "v1.1")
+  };
 })();

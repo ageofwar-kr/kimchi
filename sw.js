@@ -1,5 +1,5 @@
-/* 김치 v1.0 — 오프라인 셸 캐시 (앱 설치 요건 + 재방문 속도) */
-var CACHE = "kimchi-v1.0.0";
+/* 김치 v1.1 — 오프라인 셸 캐시 (앱 설치 요건 + 재방문 속도) */
+var CACHE = "kimchi-v1.1.0";
 var ASSETS = [
   "./",
   "./index.html",

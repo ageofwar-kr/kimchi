@@ -22,6 +22,9 @@
 <meta name="twitter:description" content="오늘 브리핑, 할 일 정리, 음성 통화까지. 말로 하고 눌러서 쓰는 AI 비서 김치.">
 <meta name="twitter:image" content="https://ageofwar-kr.github.io/kimchi/assets/og.png">
 
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<link rel="dns-prefetch" href="https://script.google.com">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
@@ -50,7 +53,7 @@
   <div class="brand">
     <svg class="mark" viewBox="0 0 120 120" aria-hidden="true"><use href="#mascot"/></svg>
     <span class="brand-name">김치</span>
-    <span class="ver">v1.0</span>
+    <span class="ver">v1.1</span>
   </div>
   <div class="top-actions">
     <div class="seg" role="group" aria-label="말투">
@@ -175,10 +178,18 @@
     </div>
 
     <div class="sheet-block">
+      <div class="sheet-label">목소리 <span class="hint">(통화·읽기에 바로 적용)</span></div>
+      <div id="voicePresets" class="voice-presets"></div>
+      <p id="voiceNote" class="sheet-note">기기 음성을 불러오는 중…</p>
+      <div id="voiceList" class="voice-list"></div>
+      <button type="button" id="voiceTest" class="voice-test">🔊 이 목소리 들어보기</button>
+    </div>
+
+    <div class="sheet-block">
       <div class="sheet-label">앱</div>
       <button type="button" id="sheetInstall" class="wide-btn" hidden>홈 화면에 추가</button>
       <p class="sheet-note" id="installHelp">폰 브라우저 메뉴에서 ‘홈 화면에 추가’를 누르면 앱처럼 열려요.</p>
-      <p class="sheet-note">김치 v1.0 · <a href="https://ageofwar-kr.github.io/kimchi/" target="_blank" rel="noopener">ageofwar-kr.github.io/kimchi</a></p>
+      <p class="sheet-note">김치 v1.1 · <a href="https://ageofwar-kr.github.io/kimchi/" target="_blank" rel="noopener">ageofwar-kr.github.io/kimchi</a></p>
     </div>
 
     <button type="button" class="wide-btn ghost" data-close="1">닫기</button>

@@ -1,4 +1,4 @@
-/* 김치 v1.0 — 화이트/블랙 모노톤 + 레드 포인트 */
+/* 김치 v1.1 — 화이트/블랙 모노톤 + 레드 포인트 */
 :root {
   --bg: #ffffff;
   --surface: #f5f5f7;
@@ -267,6 +267,30 @@ a { color: inherit; }
 .todo-list .del { border: 0; background: none; color: var(--muted); font-size: 16px; padding: 0 2px; }
 .todo-empty { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
 .sheet-note { font-size: 12px; color: var(--muted); margin: 8px 0 0; line-height: 1.5; }
+
+/* ---------- 목소리 (v1.1) ---------- */
+.voice-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.voice-chip {
+  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+  font-size: 12.5px; font-weight: 700; padding: 8px 12px; border-radius: 999px;
+  transition: background .16s ease, color .16s ease, border-color .16s ease;
+}
+.voice-chip[aria-pressed="true"] { background: var(--red); border-color: var(--red); color: #fff; }
+.voice-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; max-height: 168px; overflow-y: auto; }
+.voice-row {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  border: 1px solid var(--line); background: var(--surface); color: var(--text);
+  font-size: 13px; padding: 9px 12px; border-radius: 12px;
+}
+.voice-row[aria-pressed="true"] { border-color: var(--red); background: var(--red-soft); }
+.voice-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.voice-pick { color: var(--red); font-weight: 800; }
+.voice-test {
+  width: 100%; margin-top: 10px; padding: 10px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+  font-size: 13px; font-weight: 700;
+}
+.voice-test:active { background: var(--surface); }
 
 /* ---------- 토스트 ---------- */
 .toast {
