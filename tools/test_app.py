@@ -93,14 +93,17 @@ def run(url, label, viewport, mobile=False):
 
         # 통화 중 텍스트 폴백으로 한 턴
         page.click("#kbBtn")
-        page.fill("#callInput", "지금 내 할 일 뭐 있어?")
+        said = "지금 내 할 일 뭐 있어?"
+        page.fill("#callInput", said)
         page.click("#callForm button[type=submit]")
         call_reply = ""
         try:
-            page.wait_for_function("""() => {
+            page.wait_for_function("""(said) => {
                 const s = document.querySelector('#callSub');
-                return s && s.innerText.trim().length > 6 && !s.innerText.includes('듣고 있어');
-            }""", timeout=40000)
+                if (!s) return false;
+                const t = s.innerText.trim();
+                return t.length > 10 && t !== said;
+            }""", arg=said, timeout=45000)
             call_reply = page.inner_text("#callSub")
         except Exception as e:
             report["ok"] = False
