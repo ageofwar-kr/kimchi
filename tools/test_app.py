@@ -66,7 +66,7 @@ def run(url, label, viewport, mobile=False):
 
         # 3) 할 일 추가 → 칩 '내 할 일' 시트
         page.click("#settingsBtn")
-        page.fill("#nameInput", "원재")
+        page.fill("#nameInput", "하늘")  # 공개 저장소 스크린샷용 데모 이름
         page.click("#nameSave")
         page.wait_for_timeout(300)
         page.click("#settingsBtn")

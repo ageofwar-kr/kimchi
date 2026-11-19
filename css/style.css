@@ -276,6 +276,8 @@ a { color: inherit; }
   max-width: 86vw; text-align: center;
 }
 
+.toast.top { bottom: auto; top: calc(16px + var(--safe-t)); }
+
 /* ---------- 데스크톱 ---------- */
 @media (min-width: 760px) {
   .top { max-width: 760px; width: 100%; margin: 0 auto; }

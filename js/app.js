@@ -545,6 +545,8 @@
     var t = $("toast");
     if (!t) return;
     t.textContent = msg;
+    var sheetOpen = $("sheet") && !$("sheet").hidden;
+    t.className = "toast" + (sheetOpen ? " top" : "");
     t.hidden = false;
     if (toastTimer) clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { t.hidden = true; }, 2600);
@@ -653,8 +655,8 @@
       state.name = v;
       LS.set("kimchi.name", v);
       renderHome();
-      toast(v ? (state.tone === "casual" ? v + "이라고 부를게." : v + "님이라고 부를게요.") : "이름을 비웠어요.");
       closeSheet();
+      toast(v ? (state.tone === "casual" ? v + "이라고 부를게." : v + "님이라고 부를게요.") : "이름을 비웠어요.");
     });
     $("todoAdd").addEventListener("click", function () {
       var v = $("todoInput").value;
