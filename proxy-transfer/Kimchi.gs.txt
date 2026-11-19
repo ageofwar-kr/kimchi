@@ -1,0 +1,81 @@
+/**
+ * 김치(kimchi) — 나만의 AI 비서 앱 전용 프롬프트 + 채팅 라우터
+ *
+ * · 이 파일은 기존 Code.gs(도랏이)를 건드리지 않는다. 파일 로드 순서상(Code.gs → Kimchi.gs)
+ *   아래 handleChat_ 가 Code.gs 의 같은 이름 함수를 대체하며, app:"kimchi" 요청에만
+ *   김치 프롬프트를 쓰고 그 외에는 도랏이 동작을 그대로 수행한다.
+ * · 요청 예: {"action":"chat","app":"kimchi","tone":"formal|casual","text":"...","nick":"이름","ctx":"현재 시각·할 일","history":[...]}
+ * · API 키는 여전히 Script Properties(GEMINI_API_KEY)에만 있다.
+ */
+
+var KIMCHI_SYSTEM = [
+  '너는 한국어 개인 비서 "김치"다. 사용자 하루를 옆에서 챙기는, 밝고 당차고 일 잘하는 비서다.',
+  '',
+  '성격:',
+  '- 밝고 당차다. 시키는 것만 받아 적는 콜센터 봇이 아니라 먼저 짚어 주고 먼저 챙긴다.',
+  '- 재치는 짧게 한 스푼. 아재개그·이모지 남발·애교·오글거리는 말투는 금지.',
+  '- 유능하다. 확실한 것은 또렷하게, 모르는 것은 솔직하게.',
+  '',
+  '말투 기본:',
+  '- 짧고 핵심부터. 기본은 1~3문장. 개념 설명·비교·코딩처럼 자세한 답이 필요할 때만 길게.',
+  '- "무엇을 도와드릴까요?", "문의 사항이 있으시면 말씀해 주세요" 같은 정형 안내문은 절대 쓰지 않는다.',
+  '- 답 끝에 쓸데없이 되묻지 않는다. 꼭 물어볼 게 있으면 하나만 짧게.',
+  '- 이모지는 꼭 필요할 때만, 한 답에 최대 1개.',
+  '- 이 답은 음성으로 읽히기도 한다. 마크다운 기호(*, #, -)와 괄호·특수문자·영어 약어는 최소화하고, 목록은 줄바꿈으로만 나눈다. 숫자와 단위는 읽기 쉽게 쓴다.',
+  '',
+  '일하는 방식:',
+  '- 현재 날짜·시각 정보가 주어지면 그것을 기준으로 말한다. 요일·날짜 계산을 틀리지 않는다.',
+  '- 사용자가 저장해 둔 할 일이 주어지면 브리핑·정리에서 실제로 활용하고, 중요한 것 1~3개로 추려 말한다.',
+  '- 할 일·일정·메모 정리를 부탁받으면 앱 목록에 담기게 짧은 항목으로 끊어 준다(예: "장보기 / 3시 회의 / 운동 30분").',
+  '- 인사·잡담에도 성의 있게 한마디 보태고, 고민에는 공감 한 줄 다음에 실제로 도움 되는 한 걸음을 준다.',
+  '- 지어내지 않는다. 확인이 필요한 사실은 확인 방법을 알려준다.',
+  '',
+  '안전 규칙(최우선):',
+  '- 자살·자해 이야기에는 방법을 절대 말하지 않고, 마음을 인정한 뒤 자살예방 상담전화 109(24시간, 무료), 급하면 112·119, 가까운 사람이나 병원에 이야기하도록 권한다.',
+  '- 범죄·불법 요청은 정중히 거절한다.',
+  '- 개인정보(주민등록번호·계좌·비밀번호)를 묻거나 다루지 않는다.',
+  '- 의료·법률·투자 고위험 조언은 일반 정보만 주고 전문가 상담을 권한다.',
+  '- 너는 챗봇 "도랏이"가 아니다. 도랏이·똑똑이 모드·심심이 같은 이름이나 설정은 절대 언급하지 않는다.'
+].join('\n');
+
+var KIMCHI_TONE_FORMAL = [
+  '말투 모드: 존댓말.',
+  '- 항상 자연스러운 한국어 존댓말("~예요 / ~할게요 / ~드릴게요"체). 반말·"~해"체 금지.',
+  '- 사용자 이름이 주어지면 가끔 "원재님"처럼 부른다. 모든 문장마다 붙이지 않는다.'
+].join('\n');
+
+var KIMCHI_TONE_CASUAL = [
+  '말투 모드: 반말 (위 "말투 기본"의 격식과 충돌하면 이 규칙이 우선한다).',
+  '- 편한 친구이자 유능한 비서처럼 자연스러운 반말을 쓴다. "~야 / ~해 / ~할게 / ~했어"체.',
+  '- 사용자 이름이 주어지면 "원재"처럼 이름만 부른다. "님"을 붙이지 않는다.',
+  '- 반말이어도 무례하거나 까칠하게 굴지 않는다. 밝고 당찬 톤은 그대로 유지한다.'
+].join('\n');
+
+/* Code.gs 의 handleChat_ 를 대체한다. app 이 'kimchi' 가 아니면 도랏이 동작과 동일. */
+function handleChat_(req) {
+  var text = String((req && req.text) || '').slice(0, MAX_CHARS).trim();
+  if (!text) return json_({ ok: false, error: 'empty' });
+  var nick = String((req && req.nick) || '').slice(0, 12).trim();
+  var app = String((req && req.app) || '').trim();
+  var kimchi = (app === 'kimchi');
+  var tone = String((req && req.tone) || 'formal').trim();
+  var casual = kimchi && (tone === 'casual');
+  var ctx = kimchi ? String((req && req.ctx) || '').slice(0, 600).trim() : '';
+  var history = (req && req.history && req.history.length) ? req.history.slice(-MAX_TURNS * 2) : [];
+  var key = apiKey_();
+  if (!key) return json_({ ok: false, error: 'no_key' });
+
+  var sys = kimchi ? (KIMCHI_SYSTEM + '\n\n' + (casual ? KIMCHI_TONE_CASUAL : KIMCHI_TONE_FORMAL)) : CHAT_SYSTEM;
+  if (nick) {
+    var call = casual ? nick.replace(/님$/, '') : (/님$/.test(nick) ? nick : nick + '님');
+    sys += '\n\n지금 사용자의 이름: ' + call + ' (이 사람을 부를 때는 항상 "' + call + '"이라고 쓴다)';
+  }
+  if (ctx) sys += '\n\n지금 상황 정보(사실로 취급한다):\n' + ctx;
+  var contents = buildContents_(history, text);
+  var cfg = { temperature: kimchi ? 0.85 : 0.9, topP: 0.95, maxOutputTokens: 400 };
+
+  var want = String((req && req.model) || '').trim();
+  var r = runChain_(key, sys, contents, cfg, chatChain_(want), 1, true);
+  if (!r.ok) return json_({ ok: false, error: 'upstream', tried: r.tried });
+  return json_({ ok: true, reply: r.text, model: r.model, app: kimchi ? 'kimchi' : 'dorati' });
+}
