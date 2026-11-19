@@ -915,7 +915,7 @@
     /* 서비스 워커 (PWA) */
     if ("serviceWorker" in navigator && location.protocol === "https:") {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("sw.js").catch(function () {});
+        navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).catch(function () {});
       });
     }
 

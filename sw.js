@@ -1,11 +1,13 @@
-/* 김치 v1.1 — 오프라인 셸 캐시 (앱 설치 요건 + 재방문 속도) */
-var CACHE = "kimchi-v1.1.0";
+/* 김치 v1.1 — 오프라인 셸 캐시 (앱 설치 요건 + 재방문 속도)
+   v1.1.1: 네트워크 우선(network-first)으로 바꿔 새 버전을 올린 뒤에도
+   설치된 앱이 예전 js/css 를 계속 물고 있지 않게 한다. 오프라인이면 캐시로 연다. */
+var CACHE = "kimchi-v1.1.1";
 var ASSETS = [
   "./",
   "./index.html",
-  "./css/style.css",
-  "./js/config.js",
-  "./js/app.js",
+  "./css/style.css?v=1.1",
+  "./js/config.js?v=1.1",
+  "./js/app.js?v=1.1",
   "./manifest.json",
   "./assets/favicon.svg",
   "./assets/icon-192.png",
@@ -33,16 +35,15 @@ self.addEventListener("fetch", function (e) {
   var url = new URL(req.url);
   if (url.origin !== location.origin) return;             /* 외부(스크립트·폰트)는 손대지 않는다 */
   e.respondWith(
-    caches.match(req).then(function (hit) {
-      if (hit) return hit;
-      return fetch(req).then(function (res) {
-        if (res && res.ok && res.type === "basic") {
-          var copy = res.clone();
-          caches.open(CACHE).then(function (c) { c.put(req, copy); });
-        }
-        return res;
-      }).catch(function () {
-        return caches.match("./index.html");
+    fetch(req).then(function (res) {
+      if (res && res.ok && res.type === "basic") {
+        var copy = res.clone();
+        caches.open(CACHE).then(function (c) { c.put(req, copy); });
+      }
+      return res;
+    }).catch(function () {                                /* 오프라인 — 캐시로 연다 */
+      return caches.match(req).then(function (hit) {
+        return hit || (req.mode === "navigate" ? caches.match("./index.html") : undefined);
       });
     })
   );
