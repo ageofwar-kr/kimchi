@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light" data-tone="formal">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>김치 — 나만의 AI 비서</title>
+<meta name="description" content="김치: 말로 하고 눌러서 쓰는 나만의 AI 비서. 오늘 브리핑, 할 일 정리, 음성 통화까지.">
+<meta name="theme-color" content="#ffffff" id="metaTheme">
+<meta name="color-scheme" content="light dark">
+<link rel="canonical" href="https://ageofwar-kr.github.io/kimchi/">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="김치">
+<meta property="og:title" content="김치 — 나만의 AI 비서">
+<meta property="og:description" content="오늘 브리핑, 할 일 정리, 음성 통화까지. 말로 하고 눌러서 쓰는 AI 비서 김치.">
+<meta property="og:url" content="https://ageofwar-kr.github.io/kimchi/">
+<meta property="og:image" content="https://ageofwar-kr.github.io/kimchi/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="김치 — 나만의 AI 비서">
+<meta name="twitter:description" content="오늘 브리핑, 할 일 정리, 음성 통화까지. 말로 하고 눌러서 쓰는 AI 비서 김치.">
+<meta name="twitter:image" content="https://ageofwar-kr.github.io/kimchi/assets/og.png">
+
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="김치">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="mascot" viewBox="0 0 120 120">
+    <path d="M24 32 H92 V96" fill="none" stroke="currentColor" stroke-width="25"
+          stroke-linecap="round" stroke-linejoin="round"/>
+    <g class="eyes">
+      <circle class="eye" cx="47" cy="32" r="5.4" fill="var(--mascot-eye)"/>
+      <circle class="eye" cx="72" cy="32" r="5.4" fill="var(--mascot-eye)"/>
+    </g>
+    <path class="smile" d="M52 44 q6 5 12 0" fill="none" stroke="var(--mascot-eye)"
+          stroke-width="3.4" stroke-linecap="round"/>
+  </symbol>
+</svg>
+
+<header class="top">
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 120 120" aria-hidden="true"><use href="#mascot"/></svg>
+    <span class="brand-name">김치</span>
+    <span class="ver">v1.0</span>
+  </div>
+  <div class="top-actions">
+    <div class="seg" role="group" aria-label="말투">
+      <button type="button" id="toneFormal" class="seg-btn" aria-pressed="true">존댓말</button>
+      <button type="button" id="toneCasual" class="seg-btn" aria-pressed="false">반말</button>
+    </div>
+    <button type="button" id="themeBtn" class="icon-btn" aria-label="화이트/다크 전환" title="화이트/다크">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path class="ic-moon" d="M20 14.5A8 8 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/><circle class="ic-sun" cx="12" cy="12" r="4.2"/><g class="ic-rays"><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4L17 7M7 17l-1.6 1.6"/></g></svg>
+    </button>
+    <button type="button" id="settingsBtn" class="icon-btn" aria-label="설정" title="설정">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.4v2.2M12 18.4v2.2M4.2 12H2M22 12h-2.2M6.3 6.3 4.7 4.7M19.3 19.3l-1.6-1.6M17.7 6.3l1.6-1.6M4.7 19.3l1.6-1.6"/></svg>
+    </button>
+  </div>
+</header>
+
+<div id="installBar" class="install-bar" hidden>
+  <span class="install-text">홈 화면에 김치를 추가하면 앱처럼 열려요.</span>
+  <button type="button" id="installGo" class="install-btn">앱 설치</button>
+  <button type="button" id="installClose" class="install-x" aria-label="닫기">×</button>
+</div>
+
+<div id="kakaoBar" class="install-bar warn" hidden>
+  <span class="install-text">카카오톡 안에서는 음성 통화가 막힐 수 있어요. 크롬으로 열어 주세요.</span>
+  <button type="button" id="kakaoGo" class="install-btn">크롬으로 열기</button>
+</div>
+
+<main id="main">
+  <section id="home" class="home">
+    <div class="hero">
+      <div class="mascot-wrap">
+        <svg class="mascot-hero" viewBox="0 0 120 120" role="img" aria-label="김치 마스코트"><use href="#mascot"/></svg>
+      </div>
+      <h1 id="greet" class="greet">안녕하세요</h1>
+      <p id="sub" class="sub">오늘 챙길 일, 제가 먼저 물어볼게요.</p>
+    </div>
+  </section>
+
+  <section id="chat" class="chat" hidden>
+    <div id="msgs" class="msgs" aria-live="polite"></div>
+  </section>
+</main>
+
+<div class="chips-row">
+  <div class="chips" id="chips"></div>
+</div>
+
+<form class="composer" id="form" autocomplete="off">
+  <button type="button" class="phone" id="callBtn" aria-label="김치와 음성 통화" title="음성 통화">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 3.6h3.1l1.5 3.7-2 1.4a11.4 11.4 0 0 0 5.3 5.3l1.4-2 3.7 1.5v3.1a2.2 2.2 0 0 1-2.4 2.2A16.4 16.4 0 0 1 4.2 6a2.2 2.2 0 0 1 2.2-2.4z"/></svg>
+  </button>
+  <label class="field">
+    <input id="input" type="text" placeholder="김치에게 말하기" enterkeyhint="send" autocomplete="off">
+  </label>
+  <button type="submit" class="send" id="sendBtn" aria-label="보내기">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+  </button>
+</form>
+
+<!-- 음성 통화 -->
+<div id="call" class="call" hidden aria-hidden="true">
+  <div class="call-top">
+    <div class="call-status" id="callStatus">연결 중…</div>
+    <div class="call-timer" id="callTimer">00:00</div>
+  </div>
+  <div class="call-stage">
+    <div class="pulse"></div>
+    <div class="pulse p2"></div>
+    <svg class="mascot-call" viewBox="0 0 120 120" role="img" aria-label="김치"><use href="#mascot"/></svg>
+    <div class="wave" id="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+  </div>
+  <div class="call-sub" id="callSub"></div>
+  <div class="call-fallback" id="callFallback" hidden>
+    <p class="fallback-note" id="fallbackNote">마이크를 쓸 수 없어요. 아래에 적어서 말해 주세요.</p>
+    <form id="callForm" class="call-input-row" autocomplete="off">
+      <input id="callInput" type="text" placeholder="여기에 적어서 말하기" enterkeyhint="send">
+      <button type="submit" aria-label="보내기">↑</button>
+    </form>
+  </div>
+  <div class="call-controls">
+    <button type="button" class="ctl" id="micBtn" aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a3 3 0 0 1 3 3v4a3 3 0 0 1-6 0V7a3 3 0 0 1 3-3z"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
+      <span id="micLabel">음소거</span>
+    </button>
+    <button type="button" class="ctl" id="spkBtn" aria-pressed="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M16 9a4 4 0 0 1 0 6M18.6 6.6a7.5 7.5 0 0 1 0 10.8"/></svg>
+      <span id="spkLabel">스피커</span>
+    </button>
+    <button type="button" class="ctl keyboard" id="kbBtn" aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="11" rx="2.4"/><path d="M7 11h.01M11 11h.01M15 11h.01M7 14h10"/></svg>
+      <span>키보드</span>
+    </button>
+    <button type="button" class="ctl end" id="endBtn">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 14.6c4.8-4.6 12-4.6 16.8 0l-2.2 2.7-3.1-1.6v-2a11 11 0 0 0-6.2 0v2l-3.1 1.6z"/></svg>
+      <span>종료</span>
+    </button>
+  </div>
+</div>
+
+<!-- 설정 시트 -->
+<div id="sheet" class="sheet-wrap" hidden>
+  <div class="sheet-backdrop" data-close="1"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-grab"></div>
+    <h2 id="sheetTitle" class="sheet-title">설정</h2>
+
+    <div class="sheet-block">
+      <label class="sheet-label" for="nameInput">부르는 이름 <span class="hint">(비워 두어도 괜찮아요)</span></label>
+      <div class="row">
+        <input id="nameInput" class="text-input" type="text" placeholder="" maxlength="12" autocomplete="off">
+        <button type="button" id="nameSave" class="mini-btn">저장</button>
+      </div>
+    </div>
+
+    <div class="sheet-block">
+      <div class="sheet-label">할 일</div>
+      <div class="row">
+        <input id="todoInput" class="text-input" type="text" placeholder="할 일 추가" maxlength="60" autocomplete="off">
+        <button type="button" id="todoAdd" class="mini-btn">추가</button>
+      </div>
+      <ul id="todoList" class="todo-list"></ul>
+      <p id="todoEmpty" class="todo-empty">아직 등록한 할 일이 없어요.</p>
+    </div>
+
+    <div class="sheet-block">
+      <div class="sheet-label">앱</div>
+      <button type="button" id="sheetInstall" class="wide-btn" hidden>홈 화면에 추가</button>
+      <p class="sheet-note" id="installHelp">폰 브라우저 메뉴에서 ‘홈 화면에 추가’를 누르면 앱처럼 열려요.</p>
+      <p class="sheet-note">김치 v1.0 · <a href="https://ageofwar-kr.github.io/kimchi/" target="_blank" rel="noopener">ageofwar-kr.github.io/kimchi</a></p>
+    </div>
+
+    <button type="button" class="wide-btn ghost" data-close="1">닫기</button>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

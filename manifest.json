@@ -1,0 +1,21 @@
+{
+  "name": "김치 — 나만의 AI 비서",
+  "short_name": "김치",
+  "description": "오늘 브리핑, 할 일 정리, 음성 통화까지. 말로 하고 눌러서 쓰는 AI 비서 김치.",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "./?src=pwa",
+  "scope": "./",
+  "id": "/kimchi/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#e53935",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
